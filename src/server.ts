@@ -14,67 +14,11 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY!
 );
 
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
-
-const harmfulPatterns = {
-  profanity: [
-    /\b(stupid|fuck|dumb|idiot|moron|loser|jerk|fool)\b/gi,
-    /\b(suck|sucks|sucked|sucking)\b/gi,
-    /\b(freak|weirdo|psycho|crazy|lame)\b/gi,
-    /\b(ugly|fat|skinny|gross|disgusting)\b/gi,
-    /\b(hate\s*(you|u)|hate\s+your)\b/gi,
-    /\b(stfu|stink|smelly|eww+)\b/gi,
-    /\b(wtf|wth|omfg|lmfao|af|asf|stfu|gtfo|ffs|bs|fu)\b/gi,
-    /\b(a+ss|a+hole|b+tch|d+mn|d+ck|sh+t|f+ck|cr+p|h+ll)\b/gi,
-    /\b(st[0o]pid|dum+b|id[i1]ot|l[o0]ser)\b/gi,
-  ],
-  silencing: [
-    /\b(shut\s*(up|it|your\s*(mouth|face|trap)))\b/gi,
-    /\b(be\s+quiet|zip\s+it|nobody\s+asked)\b/gi,
-    /\b(go\s+away|leave\s+(me\s+)?alone|get\s+(out|lost|away))\b/gi,
-    /\b(don'?t\s+care|who\s+cares|no\s*one\s+cares?)\b/gi,
-    /\b(stop\s+(talking|posting|crying|whining))\b/gi,
-  ],
-  bullying: [
-    /\b(nobody\s*(likes?|loves?|wants?)\s*(you|u))\b/gi,
-    /\b(you('re|\s+are)\s+(pathetic|worthless|useless|terrible|awful|annoying|boring))\b/gi,
-    /\b(cry\s*baby|baby|wimp|coward|chicken)\b/gi,
-    /\b(your\s+fault|blame\s+(you|u))\b/gi,
-    /\b(you\s+(deserve|asked\s+for)\s+(it|this))\b/gi,
-    /\b(loser|failure|waste\s+of)\b/gi,
-  ],
-  sarcasm: [
-    /\b(oh\s+wow|yeah\s+right|sure\s+buddy|whatever|big\s+deal)\b/gi,
-    /\b(boo\s*hoo|poor\s+(you|baby)|so\s+sad|cry\s+more)\b/gi,
-    /\b(like\s+(I|anyone)\s+cares?|as\s+if)\b/gi,
-    /\b(lol|lmao|haha|rofl)\s*(loser|stupid|dumb|idiot)/gi,
-    /\b(good\s+for\s+you|wow\s+so\s+(cool|brave|special))\b/gi,
-    /🙄|😒|💅|🤡/g,
-  ],
-  dismissive: [
-    /\b(get\s+over\s+it|move\s+on|just\s+stop|deal\s+with\s+it)\b/gi,
-    /\b(not\s+(a\s+)?(big\s+)?deal|doesn'?t\s+matter)\b/gi,
-    /\b(you('re|\s+are)\s+overreacting|too\s+sensitive)\b/gi,
-    /\b(drama\s*queen|attention\s*(seek|want))/gi,
-    /\b(grow\s+up|act\s+your\s+age|be\s+mature)\b/gi,
-  ],
-  harmful: [
-    /\b(kill|hurt|harm|cut|bleed|amputate)\s*(your)?self\b/gi,
-    /\b(you\s+should(n't)?\s+(exist|die|disappear|leave))\b/gi,
-    /\b(end\s+it|give\s+up|kys)\b/gi,
-    /\b(world.*(better|without)\s*(you|u))\b/gi,
-  ],
-};
-
-const supportivePatterns = [
-  /\b(sorry|understand|here\s+for\s+you|support|help|care|love)\b/gi,
-  /\b(you('re|\s+are)\s+(not\s+alone|brave|strong|amazing|loved))\b/gi,
-  /\b(it('ll|\s+will)\s+(be|get)\s+(okay|better))\b/gi,
-  /\b(sending\s+(hugs?|love)|virtual\s+hug)\b/gi,
-  /❤️|💙|💚|💜|🤗|😊|💪|🫂/g,
-];
 
 interface ModerationResult {
   isAllowed: boolean;
@@ -83,49 +27,81 @@ interface ModerationResult {
   confidence: number;
 }
 
-function moderateContent(content: string): ModerationResult {
-  let supportScore = 0;
-  for (const pattern of supportivePatterns) {
-    const matches = content.match(pattern);
-    if (matches) {
-      supportScore += matches.length * 2;
-    }
+const MODERATION_PROMPT = `You are a content moderator for "The Worry Website" — a safe, anonymous peer-support platform for kids and teens (ages 8-16). Your job is to decide if a message is safe to post.
+
+BLOCK messages that contain:
+- Profanity, slurs, or vulgar language (including obfuscated variants like "f*ck", "sh1t", "st0pid")
+- Bullying, insults, or name-calling (e.g. "you're pathetic", "nobody likes you", "loser")
+- Silencing or dismissive language (e.g. "shut up", "nobody cares", "get over it", "drama queen")
+- Sarcasm or mockery aimed at someone's feelings (e.g. "boo hoo", "cry more", "yeah right")
+- Self-harm encouragement or threats (e.g. "kys", "you should die", "hurt yourself")
+- Hate speech, racism, sexism, homophobia, or any discriminatory language
+- Sexual content or inappropriate references for minors
+- Personal information (real names, addresses, phone numbers, social media handles)
+- Spam, gibberish, or off-topic trolling
+
+ALLOW messages that:
+- Express genuine feelings (sadness, anger, fear, anxiety, embarrassment, disgust)
+- Ask for help or support
+- Offer kind, supportive, or empathetic responses
+- Share personal worries or experiences appropriately
+- Use the word "stupid" or "crazy" to describe a SITUATION (not a person) — e.g. "this situation is crazy" is OK, "you're crazy" is NOT
+
+Respond with ONLY valid JSON (no markdown, no extra text):
+{"allowed": true/false, "reason": "brief explanation", "category": "none|profanity|bullying|silencing|sarcasm|dismissive|harmful|sexual|personal_info|spam", "confidence": 0.0-1.0}`;
+
+async function moderateContent(content: string): Promise<ModerationResult> {
+  if (!content || content.trim().length === 0) {
+    return { isAllowed: true, confidence: 1 };
   }
 
-  let harmScore = 0;
-  let detectedCategory = '';
-  let detectedReason = '';
-
-  for (const [category, patterns] of Object.entries(harmfulPatterns)) {
-    for (const pattern of patterns) {
-      const matches = content.match(pattern);
-      if (matches) {
-        const severity = category === 'harmful' ? 10 : category === 'bullying' ? 5 : 3;
-        harmScore += matches.length * severity;
-
-        if (!detectedCategory || severity > (detectedCategory === 'harmful' ? 10 : 3)) {
-          detectedCategory = category;
-          detectedReason = `Detected ${category} language: "${matches[0]}"`;
-        }
-      }
-    }
+  if (!GROQ_API_KEY) {
+    console.warn('No GROQ_API_KEY set — allowing content without AI moderation');
+    return { isAllowed: true, confidence: 0.5 };
   }
 
-  const finalScore = harmScore - supportScore;
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: MODERATION_PROMPT },
+          { role: 'user', content: `Moderate this message:\n\n"${content}"` },
+        ],
+        temperature: 0.1,
+        max_tokens: 150,
+      }),
+    });
 
-  if (harmScore >= 3) {
+    if (!response.ok) {
+      console.error('Moderation API error:', await response.text());
+      return { isAllowed: true, confidence: 0.5 };
+    }
+
+    const data = await response.json() as any;
+    const aiResponse = data.choices?.[0]?.message?.content?.trim();
+
+    if (!aiResponse) {
+      return { isAllowed: true, confidence: 0.5 };
+    }
+
+    const parsed = JSON.parse(aiResponse);
+
     return {
-      isAllowed: false,
-      reason: detectedReason || 'Let\'s keep this space kind and supportive! 💙',
-      category: detectedCategory,
-      confidence: Math.min(harmScore / 10, 1),
+      isAllowed: parsed.allowed === true,
+      reason: parsed.allowed ? undefined : (parsed.reason || "Let's keep this space kind and supportive!"),
+      category: parsed.category !== 'none' ? parsed.category : undefined,
+      confidence: parsed.confidence || 0.8,
     };
+  } catch (error) {
+    console.error('AI moderation error:', error);
+    return { isAllowed: true, confidence: 0.5 };
   }
-
-  return {
-    isAllowed: true,
-    confidence: 1 - (finalScore / 20),
-  };
 }
 
 const validForums = ['anger', 'fear', 'sadness', 'anxiety', 'disgust', 'embarrassment'];
@@ -171,7 +147,7 @@ app.post('/api/posts', async (req, res) => {
     return res.status(400).json({ error: 'Content is required' });
   }
 
-  const moderation = moderateContent(content);
+  const moderation = await moderateContent(content);
   if (!moderation.isAllowed) {
     return res.status(400).json({
       error: 'moderation',
@@ -180,12 +156,14 @@ app.post('/api/posts', async (req, res) => {
     });
   }
 
-  const nicknameCheck = moderateContent(nickname || '');
-  if (!nicknameCheck.isAllowed) {
-    return res.status(400).json({
-      error: 'moderation',
-      message: 'Please choose a kinder nickname',
-    });
+  if (nickname && nickname.trim()) {
+    const nicknameCheck = await moderateContent(nickname);
+    if (!nicknameCheck.isAllowed) {
+      return res.status(400).json({
+        error: 'moderation',
+        message: 'Please choose a kinder nickname',
+      });
+    }
   }
 
   const { data, error } = await supabase
@@ -267,7 +245,7 @@ app.post('/api/replies', async (req, res) => {
     return res.status(400).json({ error: 'Content is required' });
   }
 
-  const moderation = moderateContent(content);
+  const moderation = await moderateContent(content);
   if (!moderation.isAllowed) {
     return res.status(400).json({
       error: 'moderation',
@@ -276,12 +254,14 @@ app.post('/api/replies', async (req, res) => {
     });
   }
 
-  const nicknameCheck = moderateContent(nickname || '');
-  if (!nicknameCheck.isAllowed) {
-    return res.status(400).json({
-      error: 'moderation',
-      message: 'Please choose a kinder nickname',
-    });
+  if (nickname && nickname.trim()) {
+    const nicknameCheck = await moderateContent(nickname);
+    if (!nicknameCheck.isAllowed) {
+      return res.status(400).json({
+        error: 'moderation',
+        message: 'Please choose a kinder nickname',
+      });
+    }
   }
 
   const { data, error } = await supabase
@@ -351,8 +331,6 @@ app.delete('/api/replies/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-
 const AI_SYSTEM_PROMPT = `You are a kind, warm, and supportive AI helper on "The Worry Website" — a safe space for kids and teens to share their worries anonymously.
 
 Your role:
@@ -418,9 +396,9 @@ app.post('/api/ai-reply', async (req, res) => {
   }
 });
 
-app.post('/api/moderate', (req, res) => {
+app.post('/api/moderate', async (req, res) => {
   const { content } = req.body;
-  const result = moderateContent(content || '');
+  const result = await moderateContent(content || '');
   res.json(result);
 });
 
