@@ -156,7 +156,7 @@ Supportive language is detected and can offset minor issues to reduce false posi
 
 ## License
 
-MIT License - feel free to use this for your own projects!
+GNU GPL V3 - Quite harsh but I love this code - sooo
 
 ## Contributing
 
