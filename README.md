@@ -16,6 +16,7 @@ A safe, anonymous space for kids to share their worries and support each other. 
 - **Supportive Replies** - Community members can offer support
 - **AI Content Moderation** - Automatically filters mean, sarcastic, or harmful content
 - **Kid-Friendly Design** - Colorful themes inspired by Inside Out characters
+- **AI Support** - Ai can help if no one replies - made using [Groq](https://console.groq.com/home) api
 
 ## Tech Stack
 
@@ -145,7 +146,7 @@ git push heroku main
 
 ## Content Moderation
 
-The app includes pattern-based moderation that filters:
+The app includes AI moderation that filters:
 - Profanity and mean words
 - Bullying language
 - Sarcasm and mocking
