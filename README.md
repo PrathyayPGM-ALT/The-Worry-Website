@@ -7,7 +7,7 @@ A safe, anonymous space for kids to share their worries and support each other. 
 <img src="https://skillicons.dev/icons?i=javascript" width="55" /> &nbsp;&nbsp;
 <img src="https://skillicons.dev/icons?i=css" width="55" /> &nbsp;&nbsp;
 <img src="https://skillicons.dev/icons?i=html" width="55" /> &nbsp;&nbsp;
-<img src="https://skillicons.dev/icons?i=sql" width="55" /> &nbsp;&nbsp;
+<img src="https://skillicons.dev/icons?i=PostgreSQL" width="55" /> &nbsp;&nbsp;
 
 ## Features
 
