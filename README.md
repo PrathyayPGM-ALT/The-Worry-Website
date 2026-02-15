@@ -3,7 +3,7 @@
 A safe, anonymous space for kids to share their worries and support each other. Inspired by Inside Out emotions.
 
 <img src="https://skillicons.dev/icons?i=nodejs" width="55" /> &nbsp;&nbsp;
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
+<img src="https://skillicons.dev/icons?i=typescript" width="55" /> &nbsp;&nbsp;
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ## Features
