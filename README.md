@@ -4,7 +4,7 @@ A safe, anonymous space for kids to share their worries and support each other. 
 
 <img src="https://skillicons.dev/icons?i=nodejs" width="55" /> &nbsp;&nbsp;
 <img src="https://skillicons.dev/icons?i=typescript" width="55" /> &nbsp;&nbsp;
-![License](https://img.shields.io/badge/License-MIT-yellow)
+<img src="https://skillicons.dev/icons?i=mitlicense" width="55" /> &nbsp;&nbsp;
 
 ## Features
 
